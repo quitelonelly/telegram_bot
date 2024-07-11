@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 
 from handlers import reg_handlers
 
+from database.core import create_tables
+
 # Загрузка переменного окружения
 load_dotenv()
 
@@ -13,6 +15,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+create_tables()
 
 reg_handlers(dp)
 
