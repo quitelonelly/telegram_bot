@@ -1,18 +1,25 @@
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 
-# Клавиатура профиля
-kb = ReplyKeyboardMarkup(
+# Основная клавиатура
+kb_reg = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text='Зарегистрироваться'),
-         KeyboardButton(text='Профиль')],
+        [KeyboardButton(text='Зарегистрироваться')]
+    ],
+    resize_keyboard=True
+)
+    
+# Клавиатура после регистрации
+kb_profile = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text='Профиль')]
     ],
     resize_keyboard=True
 )
 
 # Инлайн клавиатура профиля
-kb_profile = InlineKeyboardMarkup(
+kb_delete_profile = InlineKeyboardMarkup(
     inline_keyboard=[
-        [InlineKeyboardButton(text='Выйти', callback_data='exit')]
+        [InlineKeyboardButton(text='Удалить профиль', callback_data='exit')]
     ]
 )
 

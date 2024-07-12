@@ -2,12 +2,14 @@ from aiogram import types
 from aiogram import Dispatcher, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery
+
 import re
 
 # Импортируем клавиатуру
-from kb_bot import kb, kb_profile, kb_admin 
+from kb_bot import kb_reg, kb_profile, kb_delete_profile, kb_admin
 from state.register import RegisterState 
+
+from database.core import insert_data, select_user, delete_user, select_users
 
 # Обработчик команды /start
 async def cmd_start(message: types.Message):
@@ -16,7 +18,7 @@ async def cmd_start(message: types.Message):
     if user_id == 894963514:
         await message.answer(f"🤩Приветствую, {message.from_user.full_name}!\nЯ заметил, что вы являетесь администратором!🤩\n\nВам доступен особый список команд.", reply_markup=kb_admin)
     else:
-        await message.answer(f"🤩Приветствую, {message.from_user.full_name}!\nДля начала взаимодействия со мной отправьте мне команду!🤩", reply_markup=kb)
+        await message.answer(f"🤩Приветствую, {message.from_user.full_name}!\nДля начала взаимодействия со мной отправьте мне команду!🤩", reply_markup=kb_reg)
 
 # Обработчик команды /help
 async def cmd_help(message: types.Message):
@@ -40,43 +42,57 @@ async def cmd_reg(message: types.Message, state: FSMContext):
 
 async def register_name(message: types.Message, state: FSMContext):
     await message.answer(f"☺️ Приятно познакомиться {message.text}!\nТеперь укажите номер телефона, " + 
-                         "чтобы быть на связи\n📱 Формат телефона: +7хххххххххх\n\n⚠️ " + 
+                         "чтобы быть на связи!\n📱 Формат телефона: +7хххххххххх\n\n⚠️ " + 
                          "Внимание! Я чувствителен к формату!")
     await state.update_data(regname=message.text)
     await state.set_state(RegisterState.regPhone)
 
 async def register_phone(message: types.Message, state: FSMContext):
-    if(re.findall(r"^\+?[7][-\(]?\d{3}\)?-?\d{3}-?\d{2}-?\d{2}$", message.text)):
+    if(re.findall(r"^\+[7][-\(]?\d{3}\)?-?\d{3}-?\d{2}-?\d{2}$", message.text)):
         await state.update_data(regphone=message.text)
         reg_data = await state.get_data()
 
         # Получаем введенные данные
         reg_name = reg_data.get("regname")
         reg_phone = reg_data.get("regphone")
+        reg_tgid = message.from_user.id
+        
+        result = insert_data(reg_name, reg_phone, reg_tgid)
 
-        # Сообщение об успешном прохождении регистрации
-        msg = f"Приятно познакомиться {reg_name}! \n\nТелефон: {reg_phone}"
-        await message.answer(msg)
+        # Отправляем сообщение в зависимости от результата
+        await message.answer(result, reply_markup=kb_profile)
         await state.clear()
     else:
         await message.answer(f"😡 Номер указан в неправильном формате!")
 
-async def get_profile(message: types.Message, state: FSMContext):
-    reg_data = await state.get_data()
+async def get_profile(message: types.Message):
+    tgid = message.from_user.id
 
-    # Получаем данные от регистрации (Нужно добавить соединение с бд)
-    name = reg_data.get("rename")
-    phone = reg_data.get("regphone")
-
-    await message.answer(f"Ваш профиль:\n\n🙍‍♀️ Логин: {name}\n📞 Телефон: {phone}", reply_markup=kb_profile)
+    # Получаем данные пользователя из бд
+    result = select_user(tgid)
+    await message.answer(result, reply_markup=kb_delete_profile)
+    await message.answer("🥳Отлично!\n\nВам осталось лишь ожидать сообщения от меня!")
     
-async def exit_profile(callback_query: CallbackQuery):
-    # Тут будет логика выхода из аккаунта
-    await callback_query.message.edit_text("Вы вышли из профиля. Надеюсь, скоро увидимся снова!")
+async def exit_profile(call: types.CallbackQuery):
+    # Удаление профиля
+    tgid = call.from_user.id
 
-# Кнопки админ панели (Нужно добавить БД)
+    # Получаем данные пользователя из бд
+    result = delete_user(tgid)
+
+    # Удаляем предыдущее сообщение
+    await call.message.delete()
+
+    # Отправляем новое сообщение
+    await call.message.answer("Профиль удален", reply_markup=None)
+    await call.answer(result, show_alert=True)
+    
+# Админ панель
+# Кнопки админ панели
 async def get_clients(message: types.Message):
-    await message.answer(f"📝Вот список ваших клиетов:\n\nКЛИЕНТЫ")
+    result = select_users()
+    
+    await message.answer(result)
     
 async def set_order(message: types.Message):
     # Добавить логику добавления записи (нужна БД)

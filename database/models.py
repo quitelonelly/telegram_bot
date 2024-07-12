@@ -6,5 +6,7 @@ users_table = Table(
     "users",
     metadata_obj,
     Column("id", Integer, primary_key=True),
-    Column("username", String)
+    Column("username", String),
+    Column("userphone", String),
+    Column("usertgid", Integer),
 )
