@@ -1,3 +1,4 @@
+import asyncio
 from aiogram import types
 from aiogram import Dispatcher, F
 from aiogram.filters import Command
@@ -7,9 +8,11 @@ import re
 
 # Импортируем клавиатуру
 from kb_bot import kb_reg, kb_profile, kb_delete_profile, kb_admin
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 from state.register import RegisterState 
 
-from database.core import insert_data, select_user, delete_user, select_users
+from database.core import insert_data, select_user_profile, delete_user, select_users, create_kb, select_users_order, get_username_by_tgid
 
 # Обработчик команды /start
 async def cmd_start(message: types.Message):
@@ -22,17 +25,41 @@ async def cmd_start(message: types.Message):
 
 # Обработчик команды /help
 async def cmd_help(message: types.Message):
-    await message.answer("Вам нужна помощь?😲 По всем вопросам вы можете обращаться сюда\nтут будет номер...📱")
+    await message.answer("Вам нужна помощь?😲 По всем вопросам вы можете обращаться сюда\n\nhttps://t.me/AnastasiyaG_1983 📱")
 
 # Обработчик команды /desc
 async def cmd_desc(message: types.Message):
     await message.answer(
-         "Я бот для записи клиентов на различные процедуры. 💅\n\n"
+        "Я бот для записи клиентов на различные процедуры. 💅\n\n"
             "С моей помощью вы можете:\n\n"
             "🔹 Узнать о доступных процедурах\n"
             "🔹 Записаться на удобное для вас время\n"
             "🔹 Получить напоминание о предстоящей записи\n\n"
             "Если у вас есть вопросы, просто напишите мне!"
+    )
+    
+# Обработчик команды /services
+async def cmd_serv(message: types.Message):
+    await message.answer(
+        "📋Список предоставляемых услуг:\n\n"
+            "💅Дизайн(1 ноготок) — 50-300💸\n"
+            "Маникюр + укрепление + 1 тон:\nдлина S — 1400-1500💸\n"
+                                                "длина M — 1500💸\n"
+                                                "длина L — 1600💸\n"
+            "______________________________________\n\n"
+            "Маникюр без покрытия — 600💸\n"
+            "______________________________________\n\n"
+            "Наращивание, моделирование:\nдлина S —\n"
+                                                "длина M — 2000💸\n"
+                                                "длина L — 2500💸\n"
+            "______________________________________\n\n"
+            "Французский маникюр:\nдлина S — 1500💸\n"
+                                                "длина M — 1600💸\n"
+                                                "длина L — 1700💸\n"
+            "______________________________________\n\n"
+            "👣Педикюр полный — 2000💸\n"
+            "Педикюр(пальчики/покрытие) — 1700💸\n"
+            "Педикюр(полная обработка без покрытия) — 1700💸"
     )
 
 # Обработчик команды 'Зарегистрироваться'
@@ -69,7 +96,7 @@ async def get_profile(message: types.Message):
     tgid = message.from_user.id
 
     # Получаем данные пользователя из бд
-    result = select_user(tgid)
+    result = select_user_profile(tgid)
     await message.answer(result, reply_markup=kb_delete_profile)
     await message.answer("🥳Отлично!\n\nВам осталось лишь ожидать сообщения от меня!")
     
@@ -94,9 +121,55 @@ async def get_clients(message: types.Message):
     
     await message.answer(result)
     
+# Обработка кнопки "Записать"
 async def set_order(message: types.Message):
-    # Добавить логику добавления записи (нужна БД)
-    await message.answer(f"Пожалуйста, введите ФИО клиента.")
+    users = select_users_order()
+    keyboard = create_kb(users)
+    
+    await message.answer("Давайте запишем клиента на процедуру! Выберите клиента из клавиатуры.", reply_markup=keyboard)
+    
+# Сообщение с подтверждением выбранного клиента
+async def handle_client_selection(callback: types.CallbackQuery):
+    selected_user_tgid = int(callback.data)
+    selected_user_name = await get_username_by_tgid(selected_user_tgid)
+    
+    confirmation_keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Да", callback_data=f"confirm:{selected_user_tgid}"),
+                InlineKeyboardButton(text="Нет", callback_data="cancel")
+            ]
+        ]
+    )
+
+    # Подтверждение на выбор клиента
+    await callback.message.answer(f"Вы хотите выбрать клиента: {selected_user_name}?", reply_markup=confirmation_keyboard)
+    
+# Функция для обработки подтверждения выбора клиента
+async def handle_confirmation(callback: types.CallbackQuery):
+    if ":" in callback.data:
+        action, selected_user_tgid = callback.data.split(":")
+        selected_user_tgid = int(selected_user_tgid)
+    else:
+        action = callback.data
+        selected_user_tgid = None
+
+    if action == "confirm":
+        if selected_user_tgid is not None:
+            selected_user_name = await get_username_by_tgid(selected_user_tgid)
+            # Отправляем сообщение о выборе клиента
+            msg_selection = await callback.message.answer(f"Выбран клиент: {selected_user_name}")
+
+            # Удаляем сообщение с выбором клиента и подтверждением
+            await callback.message.delete()
+            
+    elif action == "cancel":
+        # Удаляем только сообщение с подтверждением
+        await callback.message.answer("Выбор клиента отменен.")
+        await callback.message.delete()
+        
+    await callback.message.delete()
+
 
 # Функция для регистрации хэндлеров
 def reg_handlers(dp: Dispatcher):
@@ -104,6 +177,7 @@ def reg_handlers(dp: Dispatcher):
     dp.message.register(cmd_start, Command(commands=["start"]))
     dp.message.register(cmd_help, Command(commands=["help"]))
     dp.message.register(cmd_desc, Command(commands=["desc"]))
+    dp.message.register(cmd_serv, Command(commands=["services"]))
 
     # Регистрация и профиль
     dp.message.register(cmd_reg, F.text == "Зарегистрироваться")
@@ -114,4 +188,8 @@ def reg_handlers(dp: Dispatcher):
 
     # Кнопки админ панели
     dp.message.register(get_clients, F.text == "Клиенты")
+    dp.message.register(set_order, F.text == "Записать")
+    dp.callback_query.register(handle_client_selection, lambda c: c.data.isdigit())
+    dp.callback_query.register(handle_confirmation, lambda c: c.data.startswith(("confirm:", "cancel")))
+
     

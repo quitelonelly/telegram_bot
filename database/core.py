@@ -1,6 +1,7 @@
 from sqlalchemy import text, insert, select, delete
 from database.db import sync_engine
 from database.models import metadata_obj, users_table
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 def create_tables():
     metadata_obj.create_all(sync_engine)
@@ -32,7 +33,7 @@ def check_user(phone):
         else:
             return False
         
-def select_user(tgid):
+def select_user_profile(tgid):
     with sync_engine.connect() as conn:
         stmt = select(users_table).where(users_table.c.usertgid == tgid)
         result = conn.execute(stmt).fetchone()
@@ -70,4 +71,46 @@ def select_users():
             user = f"Имя: {row[1]}\nТелефон: {row[2]}\n\n"
             users_list += user
         return f"📝Вот список ваших клиентов:\n\n{users_list}"
+    
+# Функция возвращает список пользователей для инлайн клавиатуры
+def select_users_order():
+    with sync_engine.connect() as conn:
+        stmt = select(users_table).order_by(users_table.c.username)
+        result = conn.execute(stmt).fetchall()
         
+        users_list = []
+        for row in result:
+            user = {
+                "username": row[1],
+                "userphone": row[2],
+                "usertgid": row[3]
+            }
+            users_list.append(user)
+        
+        return users_list
+
+# Создадим инлайн клавиатуру со всеми пользователями
+def create_kb(user_list):
+    inline_keyboard = []
+
+    row = []
+    for user in user_list:
+        button = InlineKeyboardButton(text=user['username'], callback_data=str(user['usertgid']))
+        row.append(button)
+        
+        if len(row) == 2:
+            inline_keyboard.append(row)
+            row = []
+    if row:
+        inline_keyboard.append(row)
+
+    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+
+async def get_username_by_tgid(tgid: int) -> str:
+    with sync_engine.connect() as conn:
+        stmt = select(users_table).where(users_table.c.usertgid == tgid)
+        result = conn.execute(stmt).fetchone()
+        if result:
+            return result[1]
+        else:
+            return "Неизвестный пользователь"  

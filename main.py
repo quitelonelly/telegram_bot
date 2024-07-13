@@ -16,6 +16,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+# Вызываем функцию для создания таблиц
 create_tables()
 
 reg_handlers(dp)
