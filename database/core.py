@@ -3,10 +3,12 @@ from database.db import sync_engine
 from database.models import metadata_obj, users_table
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+# Функция создания таблиц
 def create_tables():
     metadata_obj.create_all(sync_engine)
     
-def insert_data(name, phone, tgid):
+# Добавление пользователя в бд
+def insert_user(name, phone, tgid):
     # Проверяем, существует ли пользователь с таким телефоном
     if check_user(phone):
         return f"Пользователь с номером {phone} уже существует!"
@@ -23,6 +25,7 @@ def insert_data(name, phone, tgid):
         
         return f"☺️ Приятно познакомиться {name}!\n\nПривязанный телефон: {phone}"
         
+# Функция проверки, есть ли пользователь с номером телефона
 def check_user(phone):
     with sync_engine.connect() as conn:
         stmt = select(users_table).where(users_table.c.userphone == phone)
@@ -32,7 +35,8 @@ def check_user(phone):
             return True
         else:
             return False
-        
+
+# Функция возвращает логин и пароль пользователя 
 def select_user_profile(tgid):
     with sync_engine.connect() as conn:
         stmt = select(users_table).where(users_table.c.usertgid == tgid)
@@ -42,7 +46,8 @@ def select_user_profile(tgid):
             return f"Ваш профиль:\n\n👩‍🦳Логин: {result[1]}\n📞Телефон: {result[2]}"
         else: 
             return f"Вы еще не зарегистрировались!"
-        
+
+# Функция удаляет пользователя
 def delete_user(tgid):
     with sync_engine.connect() as conn:
         # Сначала получаем данные пользователя
@@ -58,7 +63,8 @@ def delete_user(tgid):
             return f"Ваш профиль был успешно удален:\n\n👩‍🦳Логин: {result[1]}\n📞Телефон: {result[2]}"
         else: 
             return f"Вашего профиля не существует."
-        
+
+# Функция возвращает список клиентов для админ панели
 def select_users():
     with sync_engine.connect() as conn:
         # Получим всех юзеров из БД
@@ -106,6 +112,7 @@ def create_kb(user_list):
 
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
+# Поиск пользователя по tgid
 async def get_username_by_tgid(tgid: int) -> str:
     with sync_engine.connect() as conn:
         stmt = select(users_table).where(users_table.c.usertgid == tgid)
@@ -114,3 +121,4 @@ async def get_username_by_tgid(tgid: int) -> str:
             return result[1]
         else:
             return "Неизвестный пользователь"  
+        

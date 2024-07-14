@@ -7,10 +7,17 @@ class Settings(BaseSettings):
     DB_PASS: str
     DB_NAME: str
     BOT_TOKEN: str
+    ID_ADMINS: str
     
     @property
     def DATABASE_URL_psycopg(self):
         return f"postgresql+psycopg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+    
+    model_config = SettingsConfigDict(env_file="telegram_bot-main/.env")  
+    
+    @property
+    def admin_ids(self):
+        return list(map(int, self.ID_ADMINS.strip().split(',')))
     
     model_config = SettingsConfigDict(env_file="telegram_bot-main/.env")  
     

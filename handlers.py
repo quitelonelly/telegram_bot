@@ -1,10 +1,14 @@
-import asyncio
 from aiogram import types
 from aiogram import Dispatcher, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
+from dotenv import load_dotenv
+import os
+
 import re
+
+from database.config import settings
 
 # Импортируем клавиатуру
 from kb_bot import kb_reg, kb_profile, kb_delete_profile, kb_admin
@@ -12,20 +16,22 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from state.register import RegisterState 
 
-from database.core import insert_data, select_user_profile, delete_user, select_users, create_kb, select_users_order, get_username_by_tgid
+from database.core import insert_user, select_user_profile, delete_user, select_users, create_kb, select_users_order, get_username_by_tgid
 
 # Обработчик команды /start
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
 
-    if user_id == 894963514:
+    admin_ids = settings.admin_ids
+    if user_id in admin_ids:
         await message.answer(f"🤩Приветствую, {message.from_user.full_name}!\nЯ заметил, что вы являетесь администратором!🤩\n\nВам доступен особый список команд.", reply_markup=kb_admin)
     else:
         await message.answer(f"🤩Приветствую, {message.from_user.full_name}!\nДля начала взаимодействия со мной отправьте мне команду!🤩", reply_markup=kb_reg)
 
 # Обработчик команды /help
 async def cmd_help(message: types.Message):
-    await message.answer("Вам нужна помощь?😲 По всем вопросам вы можете обращаться сюда\n\nhttps://t.me/AnastasiyaG_1983 📱")
+    await message.answer("Вам нужна помощь?😲 По всем вопросам вы можете обращаться сюда\n\n... 📱")
+    # https://t.me/AnastasiyaG_1983
 
 # Обработчик команды /desc
 async def cmd_desc(message: types.Message):
@@ -84,7 +90,7 @@ async def register_phone(message: types.Message, state: FSMContext):
         reg_phone = reg_data.get("regphone")
         reg_tgid = message.from_user.id
         
-        result = insert_data(reg_name, reg_phone, reg_tgid)
+        result = insert_user(reg_name, reg_phone, reg_tgid)
 
         # Отправляем сообщение в зависимости от результата
         await message.answer(result, reply_markup=kb_profile)
@@ -143,7 +149,7 @@ async def handle_client_selection(callback: types.CallbackQuery):
     )
 
     # Подтверждение на выбор клиента
-    await callback.message.answer(f"Вы хотите выбрать клиента: {selected_user_name}?", reply_markup=confirmation_keyboard)
+    await callback.message.answer(f"Вы хотите выбрать клиента: <b>{selected_user_name}</b>?", reply_markup=confirmation_keyboard, parse_mode="html")
     
 # Функция для обработки подтверждения выбора клиента
 async def handle_confirmation(callback: types.CallbackQuery):
@@ -158,14 +164,15 @@ async def handle_confirmation(callback: types.CallbackQuery):
         if selected_user_tgid is not None:
             selected_user_name = await get_username_by_tgid(selected_user_tgid)
             # Отправляем сообщение о выборе клиента
-            msg_selection = await callback.message.answer(f"Выбран клиент: {selected_user_name}")
-
+            await callback.message.answer(
+                f"🥳Отлично!\nВы выбрали клиента: <b>{selected_user_name}</b>👩‍🦳\n\n⌚️Теперь введите дату и время записи.\nФормат даты: DD.MM.YYYY HH:MM",
+                parse_mode="html")
             # Удаляем сообщение с выбором клиента и подтверждением
             await callback.message.delete()
             
     elif action == "cancel":
         # Удаляем только сообщение с подтверждением
-        await callback.message.answer("Выбор клиента отменен.")
+        await callback.answer("Выбор клиента отменен.", show_alert=True)
         await callback.message.delete()
         
     await callback.message.delete()
