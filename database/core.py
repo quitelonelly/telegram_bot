@@ -1,7 +1,9 @@
-from sqlalchemy import text, insert, select, delete
+from sqlalchemy import text, insert, select, delete, func
+from datetime import datetime
 from database.db import sync_engine
-from database.models import metadata_obj, users_table
+from database.models import metadata_obj, users_table, orders_table
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 
 # Функция создания таблиц
 def create_tables():
@@ -34,6 +36,16 @@ def check_user(phone):
         if result:
             return True
         else:
+            return False
+        
+def check_order(time):
+    with sync_engine.connect() as conn:
+        stmt = select(orders_table).where(orders_table.c.client_time == time)
+        result = conn.execute(stmt).fetchone()
+        
+        if result:
+            return True
+        else: 
             return False
 
 # Функция возвращает логин и пароль пользователя 
@@ -122,3 +134,53 @@ async def get_username_by_tgid(tgid: int) -> str:
         else:
             return "Неизвестный пользователь"  
         
+async def get_userphone_by_tgid(tgid: int) -> str:
+    with sync_engine.connect() as conn:
+        stmt = select(users_table).where(users_table.c.usertgid == tgid)
+        result = conn.execute(stmt).fetchone()
+        if result:
+            return result[2]
+        else:
+            return "Неизвестный пользователь"  
+        
+# Функция добавления записи в БД
+def insert_order(name, phone, tgid, time):
+    if check_order(time):
+        return "Вы уже записали клиента на это время."
+
+    with sync_engine.connect() as conn:
+        stmt = insert(orders_table).values(
+            client_name=name,
+            client_phone=phone,
+            client_tgid=tgid,
+            client_time=time
+        )
+        conn.execute(stmt)
+        conn.commit()
+
+        return f"🥳Отлично!\n\nВы записали клиента \n<b>👩‍🦳{name}</b> \nна <b>⏰{time}</b>."
+    
+# функция удаляет запись, если она достигла своего времени
+def delete_past_orders():
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with sync_engine.connect() as conn:
+        stmt = delete(orders_table).where(
+            func.to_timestamp(orders_table.c.client_time, 'DD.MM.YYYY HH24:MI') < func.to_timestamp(current_time, 'YYYY-MM-DD HH24:MI:SS')
+        )
+        conn.execute(stmt)
+        conn.commit()
+        
+# Просмотр всех записей
+def fetch_all_orders():
+    with sync_engine.connect() as conn:
+        stmt = select(orders_table.c.client_name, orders_table.c.client_phone, orders_table.c.client_time)
+        result = conn.execute(stmt).fetchall()
+        
+        if not result:
+            return "Записей не найдено"
+
+        formatted_results = []
+        for row in result:
+            formatted_results.append(f"👩‍🦳Имя: <b>{row[0]}</b>\n📞Телефон: <b>{row[1]}</b>\n⌚️Время: <b>{row[2]}</b>")
+        
+        return "\n\n".join(formatted_results)

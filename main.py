@@ -1,11 +1,24 @@
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import asyncio
 import os
 from aiogram import Bot, Dispatcher
 from dotenv import load_dotenv
 
+
 from handlers import reg_handlers
 
-from database.core import create_tables
+from database.core import create_tables, delete_past_orders
+
+delete_past_orders()
+
+# Настройка планировщика
+scheduler = AsyncIOScheduler()
+
+# Планирование функции для выполнения каждую минуту
+scheduler.add_job(delete_past_orders, 'interval', minutes=1)
+
+# Запуск планировщика
+scheduler.start()
 
 # Загрузка переменного окружения
 load_dotenv()

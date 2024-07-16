@@ -14,9 +14,10 @@ from database.config import settings
 from kb_bot import kb_reg, kb_profile, kb_delete_profile, kb_admin
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from state.register import RegisterState 
+from state.register import RegisterState
+from state.order import OrderState
 
-from database.core import insert_user, select_user_profile, delete_user, select_users, create_kb, select_users_order, get_username_by_tgid
+from database.core import insert_user, select_user_profile, delete_user, select_users, create_kb, select_users_order, get_username_by_tgid, get_userphone_by_tgid, insert_order, fetch_all_orders
 
 # Обработчик команды /start
 async def cmd_start(message: types.Message):
@@ -128,21 +129,24 @@ async def get_clients(message: types.Message):
     await message.answer(result)
     
 # Обработка кнопки "Записать"
-async def set_order(message: types.Message):
+async def set_order(message: types.Message, state: FSMContext):
     users = select_users_order()
     keyboard = create_kb(users)
     
     await message.answer("Давайте запишем клиента на процедуру! Выберите клиента из клавиатуры.", reply_markup=keyboard)
-    
+    await state.set_state(OrderState.ordName)
+
 # Сообщение с подтверждением выбранного клиента
-async def handle_client_selection(callback: types.CallbackQuery):
+async def handle_client_selection(callback: types.CallbackQuery, state: FSMContext):
     selected_user_tgid = int(callback.data)
     selected_user_name = await get_username_by_tgid(selected_user_tgid)
+    
+    await state.update_data(selected_user_tgid=selected_user_tgid)
     
     confirmation_keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Да", callback_data=f"confirm:{selected_user_tgid}"),
+                InlineKeyboardButton(text="Да", callback_data="confirm"),
                 InlineKeyboardButton(text="Нет", callback_data="cancel")
             ]
         ]
@@ -150,33 +154,53 @@ async def handle_client_selection(callback: types.CallbackQuery):
 
     # Подтверждение на выбор клиента
     await callback.message.answer(f"Вы хотите выбрать клиента: <b>{selected_user_name}</b>?", reply_markup=confirmation_keyboard, parse_mode="html")
-    
+
 # Функция для обработки подтверждения выбора клиента
-async def handle_confirmation(callback: types.CallbackQuery):
-    if ":" in callback.data:
-        action, selected_user_tgid = callback.data.split(":")
-        selected_user_tgid = int(selected_user_tgid)
-    else:
-        action = callback.data
-        selected_user_tgid = None
+async def handle_confirmation(callback: types.CallbackQuery, state: FSMContext):
+    action = callback.data
 
     if action == "confirm":
-        if selected_user_tgid is not None:
-            selected_user_name = await get_username_by_tgid(selected_user_tgid)
-            # Отправляем сообщение о выборе клиента
-            await callback.message.answer(
-                f"🥳Отлично!\nВы выбрали клиента: <b>{selected_user_name}</b>👩‍🦳\n\n⌚️Теперь введите дату и время записи.\nФормат даты: DD.MM.YYYY HH:MM",
-                parse_mode="html")
-            # Удаляем сообщение с выбором клиента и подтверждением
-            await callback.message.delete()
-            
+        state_data = await state.get_data()
+        selected_user_tgid = state_data.get("selected_user_tgid")
+        selected_user_name = await get_username_by_tgid(selected_user_tgid)
+
+        # Отправляем сообщение о выборе клиента
+        await callback.message.answer(
+            f"🥳Отлично!\nВы выбрали клиента: <b>{selected_user_name}</b>👩‍🦳\n\n⌚️Теперь введите дату и время записи.\nФормат даты: DD.MM.YYYY HH:MM",
+            parse_mode="html")
+        await state.set_state(OrderState.ordTime)
+
     elif action == "cancel":
         # Удаляем только сообщение с подтверждением
         await callback.answer("Выбор клиента отменен.", show_alert=True)
-        await callback.message.delete()
-        
+
     await callback.message.delete()
 
+async def register_order_time(message: types.Message, state: FSMContext):
+    order_time = message.text
+    state_data = await state.get_data()
+    selected_user_tgid = state_data.get("selected_user_tgid")
+    selected_user_name = await get_username_by_tgid(selected_user_tgid)
+    
+    # Assuming you have a function to get the user's phone number from TGID
+    user_phone = await get_userphone_by_tgid(selected_user_tgid)
+
+    # Insert order into the database
+    result = insert_order(selected_user_name, user_phone, selected_user_tgid, order_time)
+
+    await message.answer(result, parse_mode="html")
+    await state.clear()
+    
+async def get_orders(message: types.Message):
+    # Извлекаем все заказы из базы данных
+    orders = fetch_all_orders()
+    
+    # Если заказы найдены, выводим их
+    if orders:
+        await message.answer(orders, parse_mode="html")
+    else:
+        await message.answer("Записей не найдено")
+    
 
 # Функция для регистрации хэндлеров
 def reg_handlers(dp: Dispatcher):
@@ -196,7 +220,11 @@ def reg_handlers(dp: Dispatcher):
     # Кнопки админ панели
     dp.message.register(get_clients, F.text == "Клиенты")
     dp.message.register(set_order, F.text == "Записать")
+    dp.message.register(get_orders, F.text == "Просмотреть записи")
+    
     dp.callback_query.register(handle_client_selection, lambda c: c.data.isdigit())
-    dp.callback_query.register(handle_confirmation, lambda c: c.data.startswith(("confirm:", "cancel")))
+    dp.callback_query.register(handle_confirmation, lambda c: c.data in ["confirm", "cancel"])
+    dp.message.register(register_order_time, OrderState.ordTime)
+    
 
     
