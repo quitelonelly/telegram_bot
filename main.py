@@ -1,12 +1,11 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-import asyncio
-import os
 from aiogram import Bot, Dispatcher
 from dotenv import load_dotenv
 
+import asyncio
+import os
 
 from handlers import reg_handlers
-
 from database.core import create_tables, delete_past_orders
 
 delete_past_orders()

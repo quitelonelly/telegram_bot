@@ -1,23 +1,27 @@
+# Импорт необходимых библиотек
 from aiogram import types
 from aiogram import Dispatcher, F
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
-
-from dotenv import load_dotenv
-import os
+from database.config import settings
 
 import re
-
-from database.config import settings
 
 # Импортируем клавиатуру
 from kb_bot import kb_reg, kb_profile, kb_delete_profile, kb_admin
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+# Импорт состояния
 from state.register import RegisterState
 from state.order import OrderState
 
-from database.core import insert_user, select_user_profile, delete_user, select_users, create_kb, select_users_order, get_username_by_tgid, get_userphone_by_tgid, insert_order, fetch_all_orders
+# Импорт функций для работы с БД
+from database.core import (
+    insert_user, select_user_profile, delete_user, select_users, 
+    create_kb, select_users_order, get_username_by_tgid, 
+    get_userphone_by_tgid, insert_order, fetch_all_orders,
+    delete_order_by_time,
+    )
 
 # Обработчик команды /start
 async def cmd_start(message: types.Message):
@@ -25,14 +29,13 @@ async def cmd_start(message: types.Message):
 
     admin_ids = settings.admin_ids
     if user_id in admin_ids:
-        await message.answer(f"🤩Приветствую, {message.from_user.full_name}!\nЯ заметил, что вы являетесь администратором!🤩\n\nВам доступен особый список команд.", reply_markup=kb_admin)
+        await message.answer(f"🤩Приветствую, <b>{message.from_user.full_name}</b>!\nЯ заметил, что вы являетесь администратором!🤩\n\nВам доступен особый список команд.", reply_markup=kb_admin, parse_mode="HTML")
     else:
-        await message.answer(f"🤩Приветствую, {message.from_user.full_name}!\nДля начала взаимодействия со мной отправьте мне команду!🤩", reply_markup=kb_reg)
+        await message.answer(f"🤩Приветствую, <b>{message.from_user.full_name}</b>!\nДля начала взаимодействия со мной отправьте мне команду!🤩", reply_markup=kb_reg, parse_mode="HTML")
 
 # Обработчик команды /help
 async def cmd_help(message: types.Message):
-    await message.answer("Вам нужна помощь?😲 По всем вопросам вы можете обращаться сюда\n\n... 📱")
-    # https://t.me/AnastasiyaG_1983
+    await message.answer("Вам нужна помощь?😲 По всем вопросам вы можете обращаться сюда\n\nhttps://t.me/AnastasiyaG_1983 📱")
 
 # Обработчик команды /desc
 async def cmd_desc(message: types.Message):
@@ -40,7 +43,7 @@ async def cmd_desc(message: types.Message):
         "Я бот для записи клиентов на различные процедуры. 💅\n\n"
             "С моей помощью вы можете:\n\n"
             "🔹 Узнать о доступных процедурах\n"
-            "🔹 Записаться на удобное для вас время\n"
+            "🔹 Вас запишут на удобное для вас время\n"
             "🔹 Получить напоминание о предстоящей записи\n\n"
             "Если у вас есть вопросы, просто напишите мне!"
     )
@@ -68,6 +71,7 @@ async def cmd_serv(message: types.Message):
             "Педикюр(пальчики/покрытие) — 1700💸\n"
             "Педикюр(полная обработка без покрытия) — 1700💸"
     )
+
 
 # Обработчик команды 'Зарегистрироваться'
 async def cmd_reg(message: types.Message, state: FSMContext):
@@ -99,14 +103,16 @@ async def register_phone(message: types.Message, state: FSMContext):
     else:
         await message.answer(f"😡 Номер указан в неправильном формате!")
 
+# Фукнция проверяет есть ли пользователь в БД и выдает ему профиль
 async def get_profile(message: types.Message):
     tgid = message.from_user.id
 
     # Получаем данные пользователя из бд
     result = select_user_profile(tgid)
     await message.answer(result, reply_markup=kb_delete_profile)
-    await message.answer("🥳Отлично!\n\nВам осталось лишь ожидать сообщения от меня!")
+    await message.answer("✅Отлично!\n\nВам осталось лишь ожидать сообщения от меня!")
     
+# Функция удаляет профиль пользователя
 async def exit_profile(call: types.CallbackQuery):
     # Удаление профиля
     tgid = call.from_user.id
@@ -126,7 +132,7 @@ async def exit_profile(call: types.CallbackQuery):
 async def get_clients(message: types.Message):
     result = select_users()
     
-    await message.answer(result)
+    await message.answer(result, parse_mode="html")
     
 # Обработка кнопки "Записать"
 async def set_order(message: types.Message, state: FSMContext):
@@ -176,21 +182,23 @@ async def handle_confirmation(callback: types.CallbackQuery, state: FSMContext):
 
     await callback.message.delete()
 
+# Фукнция записывает клиента на процедуру
 async def register_order_time(message: types.Message, state: FSMContext):
     order_time = message.text
     state_data = await state.get_data()
     selected_user_tgid = state_data.get("selected_user_tgid")
     selected_user_name = await get_username_by_tgid(selected_user_tgid)
     
-    # Assuming you have a function to get the user's phone number from TGID
+    # Получение номера телефона пользователя по TGID
     user_phone = await get_userphone_by_tgid(selected_user_tgid)
 
-    # Insert order into the database
-    result = insert_order(selected_user_name, user_phone, selected_user_tgid, order_time)
+    # Вставка заказа в базу данных
+    result = await insert_order(selected_user_name, user_phone, selected_user_tgid, order_time)
 
-    await message.answer(result, parse_mode="html")
+    await message.answer(result, parse_mode="HTML")
     await state.clear()
     
+# Фукнция извлечения заказов 
 async def get_orders(message: types.Message):
     # Извлекаем все заказы из базы данных
     orders = fetch_all_orders()
@@ -201,6 +209,17 @@ async def get_orders(message: types.Message):
     else:
         await message.answer("Записей не найдено")
     
+# Команда удаляет запись 
+async def cmd_delete(message: types.Message, command: CommandObject):
+    if message.from_user.id in settings.admin_ids:
+        time = command.args.strip()
+        if time:
+            result = delete_order_by_time(time)
+            await message.answer(result)
+        else:
+            await message.answer("Пожалуйста, укажите время для удаления записи. \n\nПример: /delete 01.01.2024 12:00")
+    else:
+        await message.answer("У вас нет прав для выполнения этой команды.")
 
 # Функция для регистрации хэндлеров
 def reg_handlers(dp: Dispatcher):
@@ -209,6 +228,7 @@ def reg_handlers(dp: Dispatcher):
     dp.message.register(cmd_help, Command(commands=["help"]))
     dp.message.register(cmd_desc, Command(commands=["desc"]))
     dp.message.register(cmd_serv, Command(commands=["services"]))
+    dp.message.register(cmd_delete, Command(commands=["delete"]))
 
     # Регистрация и профиль
     dp.message.register(cmd_reg, F.text == "Зарегистрироваться")

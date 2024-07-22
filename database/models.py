@@ -2,6 +2,7 @@ from sqlalchemy import Table, Column, Integer, String, MetaData, ForeignKey
 
 metadata_obj = MetaData()
 
+# Таблица с клиентами
 users_table = Table(
     "users",
     metadata_obj,
@@ -11,6 +12,7 @@ users_table = Table(
     Column("usertgid", Integer),
 )
 
+# Таблица с записями
 orders_table = Table(
     "orders",
     metadata_obj,

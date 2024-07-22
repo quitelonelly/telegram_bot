@@ -1,9 +1,17 @@
-from sqlalchemy import text, insert, select, delete, func
-from datetime import datetime
+from sqlalchemy import insert, select, delete, func
+import pytz
+from datetime import datetime, timedelta
+import asyncio
+from aiogram import Bot
 from database.db import sync_engine
 from database.models import metadata_obj, users_table, orders_table
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
+
+bot = Bot(token=os.getenv('BOT_TOKEN'))
 
 # Функция создания таблиц
 def create_tables():
@@ -86,7 +94,7 @@ def select_users():
         # Создадим список для извлечение всех пользователей
         users_list = ""
         for row in result:
-            user = f"Имя: {row[1]}\nТелефон: {row[2]}\n\n"
+            user = f"👩‍🦳Имя: <b>{row[1]}</b>\n📞Телефон: <b>{row[2]}</b>\n\n"
             users_list += user
         return f"📝Вот список ваших клиентов:\n\n{users_list}"
     
@@ -143,23 +151,47 @@ async def get_userphone_by_tgid(tgid: int) -> str:
         else:
             return "Неизвестный пользователь"  
         
+# Московская временная зона
+moscow_tz = pytz.timezone('Europe/Moscow')
+# Планирование напоминания
+async def schedule_reminder(tgid, name, time):
+    try:
+        # Преобразуем время записи клиента в московское время
+        client_time_msk = moscow_tz.localize(datetime.strptime(time, '%d.%m.%Y %H:%M'))
+        # Устанавливаем напоминание за один день до назначенного времени в 15:00 по московскому времени
+        reminder_time_msk = client_time_msk - timedelta(days=1)
+        reminder_time_msk = reminder_time_msk.replace(hour=10, minute=0, second=0, microsecond=0)
+
+        now_msk = datetime.now(moscow_tz)
+        
+        # Если время напоминания прошло, то пропускаем
+        if reminder_time_msk < now_msk:
+            return
+
+        delay = (reminder_time_msk - now_msk).total_seconds()
+        await asyncio.sleep(delay)
+        await bot.send_message(tgid, f"Привет, <b>{name}</b>!\n📅 Напоминаем, что у вас назначена процедура на <b>{time}</b>.\n\nНе забудьте прийти вовремя!😊", parse_mode="HTML")
+    except ValueError as e:
+        print(f"Ошибка формата времени: {e}")
+    
 # Функция добавления записи в БД
-def insert_order(name, phone, tgid, time):
+async def insert_order(name, phone, tgid, time):
     if check_order(time):
         return "Вы уже записали клиента на это время."
 
     with sync_engine.connect() as conn:
         stmt = insert(orders_table).values(
-            client_name=name,
-            client_phone=phone,
-            client_tgid=tgid,
+            client_name=name, 
+            client_phone=phone, 
+            client_tgid=tgid, 
             client_time=time
         )
         conn.execute(stmt)
         conn.commit()
-
+        await bot.send_message(tgid, f"Привет, <b>{name}</b>!\n📅 Вы записаны на <b>{time}</b>.\n\nСпасибо за использование нашего сервиса!😊", parse_mode="HTML")
+        asyncio.create_task(schedule_reminder(tgid, name, time))
         return f"🥳Отлично!\n\nВы записали клиента \n<b>👩‍🦳{name}</b> \nна <b>⏰{time}</b>."
-    
+
 # функция удаляет запись, если она достигла своего времени
 def delete_past_orders():
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -177,10 +209,22 @@ def fetch_all_orders():
         result = conn.execute(stmt).fetchall()
         
         if not result:
-            return "Записей не найдено"
+            return "😴У вас нет активных записей"
 
         formatted_results = []
         for row in result:
             formatted_results.append(f"👩‍🦳Имя: <b>{row[0]}</b>\n📞Телефон: <b>{row[1]}</b>\n⌚️Время: <b>{row[2]}</b>")
         
-        return "\n\n".join(formatted_results)
+        return "Для удаления записи напишите\n<b>/delete время</b>\n\n" + "\n\n".join(formatted_results)
+    
+# Удаление записи
+def delete_order_by_time(time):
+    with sync_engine.connect() as conn:
+        stmt = delete(orders_table).where(orders_table.c.client_time == time)
+        result = conn.execute(stmt)
+        conn.commit()
+
+        if result.rowcount > 0:
+            return f"Запись на время {time} была успешно удалена."
+        else:
+            return f"Запись на время {time} не найдена."
