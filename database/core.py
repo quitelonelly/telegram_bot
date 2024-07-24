@@ -160,7 +160,7 @@ async def schedule_reminder(tgid, name, time):
         client_time_msk = moscow_tz.localize(datetime.strptime(time, '%d.%m.%Y %H:%M'))
         # Устанавливаем напоминание за один день до назначенного времени в 15:00 по московскому времени
         reminder_time_msk = client_time_msk - timedelta(days=1)
-        reminder_time_msk = reminder_time_msk.replace(hour=13, minute=14, second=0, microsecond=0)
+        reminder_time_msk = reminder_time_msk.replace(hour=16, minute=0, second=0, microsecond=0)
 
         now_msk = datetime.now(moscow_tz)
 
