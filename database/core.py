@@ -82,7 +82,7 @@ def delete_user(tgid):
             
             return f"Ваш профиль был успешно удален:\n\n👩‍🦳Логин: {result[1]}\n📞Телефон: {result[2]}"
         else: 
-            return f"Вашего профиля не существует."
+            return f"💤Вашего профиля не существует"
 
 # Функция возвращает список клиентов для админ панели
 def select_users():
@@ -96,7 +96,7 @@ def select_users():
         for row in result:
             user = f"👩‍🦳Имя: <b>{row[1]}</b>\n📞Телефон: <b>{row[2]}</b>\n\n"
             users_list += user
-        return f"📝Вот список ваших клиентов:\n\n{users_list}"
+        return f"📝Вот список ваших клиентов\n\n{users_list}"
     
 # Функция возвращает список пользователей для инлайн клавиатуры
 def select_users_order():
@@ -160,7 +160,7 @@ async def schedule_reminder(tgid, name, time):
         client_time_msk = moscow_tz.localize(datetime.strptime(time, '%d.%m.%Y %H:%M'))
         # Устанавливаем напоминание за один день до назначенного времени в 15:00 по московскому времени
         reminder_time_msk = client_time_msk - timedelta(days=1)
-        reminder_time_msk = reminder_time_msk.replace(hour=16, minute=0, second=0, microsecond=0)
+        reminder_time_msk = reminder_time_msk.replace(hour=10, minute=37, second=0, microsecond=0)
 
         now_msk = datetime.now(moscow_tz)
 
@@ -194,7 +194,7 @@ async def schedule_reminder(tgid, name, time):
 # Функция добавления записи в БД
 async def insert_order(name, phone, tgid, time):
     if check_order(time):
-        return "Вы уже записали клиента на это время."
+        return "😶Вы уже записали клиента на это время"
 
     with sync_engine.connect() as conn:
         stmt = insert(orders_table).values(
@@ -205,9 +205,9 @@ async def insert_order(name, phone, tgid, time):
         )
         conn.execute(stmt)
         conn.commit()
-        await bot.send_message(tgid, f"Привет, <b>{name}</b>!\n📅 Вы записаны на <b>{time}</b>.\n\nСпасибо за использование нашего сервиса!😊", parse_mode="HTML")
+        await bot.send_message(tgid, f"Привет, <b>{name}</b>!\n📅 Вы записаны на <b>{time}</b>\n\nСпасибо за использование нашего сервиса!😊", parse_mode="HTML")
         asyncio.create_task(schedule_reminder(tgid, name, time))
-        return f"🥳Отлично!\n\nВы записали клиента \n<b>👩‍🦳{name}</b> \nна <b>⏰{time}</b>."
+        return f"✅Отлично!\n\nВы записали клиента \n<b>👩‍🦳{name}</b> \nна <b>⏰{time}</b>"
 
 # функция удаляет запись, если она достигла своего времени
 def delete_past_orders():
@@ -242,6 +242,6 @@ def delete_order_by_time(time):
         conn.commit()
 
         if result.rowcount > 0:
-            return f"Запись на время {time} была успешно удалена."
+            return f"✅Запись на время <b>{time}</b> была успешно удалена"
         else:
-            return f"Запись на время {time} не найдена."
+            return f"❌Запись на время {time} не найдена"

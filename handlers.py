@@ -182,21 +182,26 @@ async def handle_confirmation(callback: types.CallbackQuery, state: FSMContext):
 
     await callback.message.delete()
 
-# Фукнция записывает клиента на процедуру
+# Функция записывает клиента на процедуру
 async def register_order_time(message: types.Message, state: FSMContext):
     order_time = message.text
-    state_data = await state.get_data()
-    selected_user_tgid = state_data.get("selected_user_tgid")
-    selected_user_name = await get_username_by_tgid(selected_user_tgid)
-    
-    # Получение номера телефона пользователя по TGID
-    user_phone = await get_userphone_by_tgid(selected_user_tgid)
+    date_time_pattern = r"^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$"
 
-    # Вставка заказа в базу данных
-    result = await insert_order(selected_user_name, user_phone, selected_user_tgid, order_time)
+    if re.findall(date_time_pattern, order_time):
+        state_data = await state.get_data()
+        selected_user_tgid = state_data.get("selected_user_tgid")
+        selected_user_name = await get_username_by_tgid(selected_user_tgid)
+        
+        # Получение номера телефона пользователя по TGID
+        user_phone = await get_userphone_by_tgid(selected_user_tgid)
 
-    await message.answer(result, parse_mode="HTML")
-    await state.clear()
+        # Вставка заказа в базу данных
+        result = await insert_order(selected_user_name, user_phone, selected_user_tgid, order_time)
+
+        await message.answer(result, parse_mode="HTML")
+        await state.clear()
+    else:
+        await message.answer("😡Дата и время указаны в неправильном формате!\n\nПожалуйста, введите в формате <b>DD.MM.YYYY HH:MM</b>", parse_mode="HTML")
     
 # Фукнция извлечения заказов 
 async def get_orders(message: types.Message):
@@ -207,7 +212,7 @@ async def get_orders(message: types.Message):
     if orders:
         await message.answer(orders, parse_mode="html")
     else:
-        await message.answer("Записей не найдено")
+        await message.answer("💤Записей не найдено")
     
 # Команда удаляет запись 
 async def cmd_delete(message: types.Message, command: CommandObject):
@@ -215,11 +220,21 @@ async def cmd_delete(message: types.Message, command: CommandObject):
         time = command.args.strip()
         if time:
             result = delete_order_by_time(time)
-            await message.answer(result)
+            await message.answer(result, parse_mode="HTML")
         else:
             await message.answer("Пожалуйста, укажите время для удаления записи. \n\nПример: /delete 01.01.2024 12:00")
     else:
-        await message.answer("У вас нет прав для выполнения этой команды.")
+        await message.answer("❌У вас нет прав для выполнения этой команды.")
+        
+# Обработка подтверждения напоминания
+async def handle_confirm_reminder(callback: types.CallbackQuery):
+    await callback.message.answer("✅Запись подтверждена!")
+    await callback.answer()
+
+# Обработка отмены напоминания
+async def handle_cancel_reminder(callback: types.CallbackQuery):
+    await callback.message.answer("❌Запись отменена!")
+    await callback.answer()
 
 # Функция для регистрации хэндлеров
 def reg_handlers(dp: Dispatcher):
@@ -245,6 +260,10 @@ def reg_handlers(dp: Dispatcher):
     dp.callback_query.register(handle_client_selection, lambda c: c.data.isdigit())
     dp.callback_query.register(handle_confirmation, lambda c: c.data in ["confirm", "cancel"])
     dp.message.register(register_order_time, OrderState.ordTime)
+    
+    # Регистрация хэндлеров напоминания
+    dp.callback_query.register(handle_confirm_reminder, F.data == "confirm_reminder")
+    dp.callback_query.register(handle_cancel_reminder, F.data == "cancel_reminder")
     
 
     
