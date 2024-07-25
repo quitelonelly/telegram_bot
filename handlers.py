@@ -20,7 +20,7 @@ from database.core import (
     insert_user, select_user_profile, delete_user, select_users, 
     create_kb, select_users_order, get_username_by_tgid, 
     get_userphone_by_tgid, insert_order, fetch_all_orders,
-    delete_order_by_time,
+    delete_order_by_time, delete_order_by_id
     )
 
 # Обработчик команды /start
@@ -212,7 +212,7 @@ async def get_orders(message: types.Message):
     if orders:
         await message.answer(orders, parse_mode="html")
     else:
-        await message.answer("💤Записей не найдено")
+        await message.answer("Записей не найдено")
     
 # Команда удаляет запись 
 async def cmd_delete(message: types.Message, command: CommandObject):
@@ -228,13 +228,30 @@ async def cmd_delete(message: types.Message, command: CommandObject):
         
 # Обработка подтверждения напоминания
 async def handle_confirm_reminder(callback: types.CallbackQuery):
+    print(f"Confirm callback data: {callback.data}")  # Отладочное сообщение
     await callback.message.answer("✅Запись подтверждена!")
     await callback.answer()
-
+    
 # Обработка отмены напоминания
 async def handle_cancel_reminder(callback: types.CallbackQuery):
-    await callback.message.answer("❌Запись отменена!")
-    await callback.answer()
+    print(f"Cancel callback data: {callback.data}")  # Отладочное сообщение
+    try:
+        data = callback.data.split('_')
+        print(f"Parsed data: {data}")  # Отладочное сообщение
+
+        if len(data) == 3 and data[0] == "cancel" and data[1] == "reminder":
+            order_id = data[2]
+            print(f"Order ID: {order_id}")  # Отладочное сообщение
+            if delete_order_by_id(order_id):
+                await callback.message.answer("❌Запись отменена!")
+            else:
+                await callback.message.answer("❌Запись не найдена!")
+        else:
+            await callback.message.answer("❌Некорректные данные для отмены записи.")
+    except Exception as e:
+        await callback.message.answer("❌Произошла ошибка при обработке запроса.")
+    finally:
+        await callback.answer()
 
 # Функция для регистрации хэндлеров
 def reg_handlers(dp: Dispatcher):
@@ -262,8 +279,8 @@ def reg_handlers(dp: Dispatcher):
     dp.message.register(register_order_time, OrderState.ordTime)
     
     # Регистрация хэндлеров напоминания
-    dp.callback_query.register(handle_confirm_reminder, F.data == "confirm_reminder")
-    dp.callback_query.register(handle_cancel_reminder, F.data == "cancel_reminder")
+    dp.callback_query.register(handle_confirm_reminder, lambda c: c.data.startswith("confirm_reminder_"))
+    dp.callback_query.register(handle_cancel_reminder, lambda c: c.data.startswith("cancel_reminder_"))
     
 
     

@@ -82,7 +82,7 @@ def delete_user(tgid):
             
             return f"Ваш профиль был успешно удален:\n\n👩‍🦳Логин: {result[1]}\n📞Телефон: {result[2]}"
         else: 
-            return f"💤Вашего профиля не существует"
+            return f"Вашего профиля не существует."
 
 # Функция возвращает список клиентов для админ панели
 def select_users():
@@ -96,7 +96,7 @@ def select_users():
         for row in result:
             user = f"👩‍🦳Имя: <b>{row[1]}</b>\n📞Телефон: <b>{row[2]}</b>\n\n"
             users_list += user
-        return f"📝Вот список ваших клиентов\n\n{users_list}"
+        return f"📝Вот список ваших клиентов:\n\n{users_list}"
     
 # Функция возвращает список пользователей для инлайн клавиатуры
 def select_users_order():
@@ -154,34 +154,29 @@ async def get_userphone_by_tgid(tgid: int) -> str:
 # Московская временная зона
 moscow_tz = pytz.timezone('Europe/Moscow')
 # Планирование напоминания
-async def schedule_reminder(tgid, name, time):
+async def schedule_reminder(tgid, name, time, order_id):
     try:
-        # Преобразуем время записи клиента в московское время
         client_time_msk = moscow_tz.localize(datetime.strptime(time, '%d.%m.%Y %H:%M'))
-        # Устанавливаем напоминание за один день до назначенного времени в 15:00 по московскому времени
         reminder_time_msk = client_time_msk - timedelta(days=1)
-        reminder_time_msk = reminder_time_msk.replace(hour=10, minute=37, second=0, microsecond=0)
+        reminder_time_msk = reminder_time_msk.replace(hour=10, minute=0, second=0, microsecond=0)
 
         now_msk = datetime.now(moscow_tz)
 
-        # Если время напоминания прошло, то пропускаем
         if reminder_time_msk < now_msk:
             return
 
         delay = (reminder_time_msk - now_msk).total_seconds()
         await asyncio.sleep(delay)
 
-        # Создаем инлайн клавиатуру для подтверждения получения напоминания
         inline_keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
-                    InlineKeyboardButton(text="Подтвердить запись", callback_data="confirm_reminder"),
-                    InlineKeyboardButton(text="Отменить запись", callback_data="cancel_reminder")
+                    InlineKeyboardButton(text="Подтвердить запись", callback_data=f"confirm_reminder_{order_id}"),
+                    InlineKeyboardButton(text="Отменить запись", callback_data=f"cancel_reminder_{order_id}")
                 ]
             ]
         )
 
-        # Отправляем сообщение с напоминанием и инлайн клавиатурой
         await bot.send_message(
             tgid,
             f"Привет, <b>{name}</b>!\n📅 Напоминаем, что у вас назначена процедура на <b>{time}</b>.\n\nНе забудьте прийти вовремя!😊",
@@ -202,12 +197,13 @@ async def insert_order(name, phone, tgid, time):
             client_phone=phone, 
             client_tgid=tgid, 
             client_time=time
-        )
-        conn.execute(stmt)
+        ).returning(orders_table.c.id)
+        result = conn.execute(stmt)
         conn.commit()
-        await bot.send_message(tgid, f"Привет, <b>{name}</b>!\n📅 Вы записаны на <b>{time}</b>\n\nСпасибо за использование нашего сервиса!😊", parse_mode="HTML")
-        asyncio.create_task(schedule_reminder(tgid, name, time))
-        return f"✅Отлично!\n\nВы записали клиента \n<b>👩‍🦳{name}</b> \nна <b>⏰{time}</b>"
+        order_id = result.fetchone()[0]
+        await bot.send_message(tgid, f"Привет, <b>{name}</b>!\n📅 Вы записаны на <b>{time}</b>.\n\nСпасибо за использование нашего сервиса!😊", parse_mode="HTML")
+        asyncio.create_task(schedule_reminder(tgid, name, time, order_id))
+        return f"🥳Отлично!\n\nВы записали клиента \n<b>👩‍🦳{name}</b> \nна <b>⏰{time}</b>"
 
 # функция удаляет запись, если она достигла своего времени
 def delete_past_orders():
@@ -234,7 +230,7 @@ def fetch_all_orders():
         
         return "Для удаления записи напишите\n<b>/delete время</b>\n\n" + "\n\n".join(formatted_results)
     
-# Удаление записи
+# Удаление записи по времени
 def delete_order_by_time(time):
     with sync_engine.connect() as conn:
         stmt = delete(orders_table).where(orders_table.c.client_time == time)
@@ -245,3 +241,13 @@ def delete_order_by_time(time):
             return f"✅Запись на время <b>{time}</b> была успешно удалена"
         else:
             return f"❌Запись на время {time} не найдена"
+
+# Удаление записи по id       
+def delete_order_by_id(order_id):
+    with sync_engine.connect() as conn:
+        # Приведение order_id к целому числу
+        order_id = int(order_id)
+        stmt = delete(orders_table).where(orders_table.c.id == order_id)
+        result = conn.execute(stmt)
+        conn.commit()
+        return result.rowcount > 0
