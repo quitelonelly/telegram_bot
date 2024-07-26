@@ -1,9 +1,16 @@
 # Импорт необходимых библиотек
 from aiogram import types
-from aiogram import Dispatcher, F
+from aiogram import Dispatcher, F, Bot
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from database.config import settings
+
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+bot = Bot(token=os.getenv('BOT_TOKEN'))
 
 import re
 
@@ -20,7 +27,7 @@ from database.core import (
     insert_user, select_user_profile, delete_user, select_users, 
     create_kb, select_users_order, get_username_by_tgid, 
     get_userphone_by_tgid, insert_order, fetch_all_orders,
-    delete_order_by_time, delete_order_by_id
+    delete_order_by_time, delete_order_by_id, get_order_info_by_id
     )
 
 # Обработчик команды /start
@@ -51,7 +58,7 @@ async def cmd_desc(message: types.Message):
 # Обработчик команды /services
 async def cmd_serv(message: types.Message):
     await message.answer(
-        "📋Список предоставляемых услуг:\n\n"
+        "📋Список предоставляемых услуг\n\n"
             "💅Дизайн(1 ноготок) — 50-300💸\n"
             "Маникюр + укрепление + 1 тон:\nдлина S — 1400-1500💸\n"
                                                 "длина M — 1500💸\n"
@@ -172,7 +179,7 @@ async def handle_confirmation(callback: types.CallbackQuery, state: FSMContext):
 
         # Отправляем сообщение о выборе клиента
         await callback.message.answer(
-            f"🥳Отлично!\nВы выбрали клиента: <b>{selected_user_name}</b>👩‍🦳\n\n⌚️Теперь введите дату и время записи.\nФормат даты: DD.MM.YYYY HH:MM",
+            f"🥳Отлично!\nВы выбрали клиента: <b>{selected_user_name}</b>👤\n\n⌚️Теперь введите дату и время записи.\nФормат даты: DD.MM.YYYY HH:MM",
             parse_mode="html")
         await state.set_state(OrderState.ordTime)
 
@@ -231,19 +238,23 @@ async def handle_confirm_reminder(callback: types.CallbackQuery):
     print(f"Confirm callback data: {callback.data}")  # Отладочное сообщение
     await callback.message.answer("✅Запись подтверждена!")
     await callback.answer()
-    
+
 # Обработка отмены напоминания
 async def handle_cancel_reminder(callback: types.CallbackQuery):
-    print(f"Cancel callback data: {callback.data}")  # Отладочное сообщение
     try:
         data = callback.data.split('_')
-        print(f"Parsed data: {data}")  # Отладочное сообщение
 
         if len(data) == 3 and data[0] == "cancel" and data[1] == "reminder":
             order_id = data[2]
-            print(f"Order ID: {order_id}")  # Отладочное сообщение
-            if delete_order_by_id(order_id):
-                await callback.message.answer("❌Запись отменена!")
+            
+            order_info = get_order_info_by_id(order_id)
+            if order_info:
+                client_name, order_time = order_info
+                if delete_order_by_id(order_id):
+                    await callback.message.answer("❌Запись отменена!")
+                    await notify_admins_about_cancellation(client_name, order_time)
+                else:
+                    await callback.message.answer("❌Запись не найдена!")
             else:
                 await callback.message.answer("❌Запись не найдена!")
         else:
@@ -252,6 +263,13 @@ async def handle_cancel_reminder(callback: types.CallbackQuery):
         await callback.message.answer("❌Произошла ошибка при обработке запроса.")
     finally:
         await callback.answer()
+        
+# Отправка уведомления администраторам
+async def notify_admins_about_cancellation(client_name, order_time):
+    admin_ids = settings.admin_ids
+    message = f"👤Клиент <b>{client_name}</b> отменил запись на {order_time}"
+    for admin_id in admin_ids:
+        await bot.send_message(admin_id, message, parse_mode="HTML")
 
 # Функция для регистрации хэндлеров
 def reg_handlers(dp: Dispatcher):
@@ -274,11 +292,12 @@ def reg_handlers(dp: Dispatcher):
     dp.message.register(set_order, F.text == "Записать")
     dp.message.register(get_orders, F.text == "Просмотреть записи")
     
+    # Запись клиентов(подтверждение выбора)
     dp.callback_query.register(handle_client_selection, lambda c: c.data.isdigit())
     dp.callback_query.register(handle_confirmation, lambda c: c.data in ["confirm", "cancel"])
     dp.message.register(register_order_time, OrderState.ordTime)
     
-    # Регистрация хэндлеров напоминания
+    # Хэндлеров напоминания
     dp.callback_query.register(handle_confirm_reminder, lambda c: c.data.startswith("confirm_reminder_"))
     dp.callback_query.register(handle_cancel_reminder, lambda c: c.data.startswith("cancel_reminder_"))
     

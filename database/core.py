@@ -63,7 +63,7 @@ def select_user_profile(tgid):
         result = conn.execute(stmt).fetchone()
         
         if result:
-            return f"Ваш профиль:\n\n👩‍🦳Логин: {result[1]}\n📞Телефон: {result[2]}"
+            return f"Ваш профиль:\n\n👤Логин: {result[1]}\n📞Телефон: {result[2]}"
         else: 
             return f"Вы еще не зарегистрировались!"
 
@@ -80,7 +80,7 @@ def delete_user(tgid):
             conn.execute(delete_stmt)
             conn.commit()
             
-            return f"Ваш профиль был успешно удален:\n\n👩‍🦳Логин: {result[1]}\n📞Телефон: {result[2]}"
+            return f"Ваш профиль был успешно удален:\n\n👤Логин: {result[1]}\n📞Телефон: {result[2]}"
         else: 
             return f"Вашего профиля не существует."
 
@@ -94,7 +94,7 @@ def select_users():
         # Создадим список для извлечение всех пользователей
         users_list = ""
         for row in result:
-            user = f"👩‍🦳Имя: <b>{row[1]}</b>\n📞Телефон: <b>{row[2]}</b>\n\n"
+            user = f"👤Имя: <b>{row[1]}</b>\n📞Телефон: <b>{row[2]}</b>\n\n"
             users_list += user
         return f"📝Вот список ваших клиентов:\n\n{users_list}"
     
@@ -203,7 +203,7 @@ async def insert_order(name, phone, tgid, time):
         order_id = result.fetchone()[0]
         await bot.send_message(tgid, f"Привет, <b>{name}</b>!\n📅 Вы записаны на <b>{time}</b>.\n\nСпасибо за использование нашего сервиса!😊", parse_mode="HTML")
         asyncio.create_task(schedule_reminder(tgid, name, time, order_id))
-        return f"🥳Отлично!\n\nВы записали клиента \n<b>👩‍🦳{name}</b> \nна <b>⏰{time}</b>"
+        return f"🥳Отлично!\n\nВы записали клиента \n<b>👤{name}</b> \nна <b>⏰{time}</b>"
 
 # функция удаляет запись, если она достигла своего времени
 def delete_past_orders():
@@ -226,7 +226,7 @@ def fetch_all_orders():
 
         formatted_results = []
         for row in result:
-            formatted_results.append(f"👩‍🦳Имя: <b>{row[0]}</b>\n📞Телефон: <b>{row[1]}</b>\n⌚️Время: <b>{row[2]}</b>")
+            formatted_results.append(f"👤Имя: <b>{row[0]}</b>\n📞Телефон: <b>{row[1]}</b>\n⌚️Время: <b>{row[2]}</b>")
         
         return "Для удаления записи напишите\n<b>/delete время</b>\n\n" + "\n\n".join(formatted_results)
     
@@ -251,3 +251,16 @@ def delete_order_by_id(order_id):
         result = conn.execute(stmt)
         conn.commit()
         return result.rowcount > 0
+    
+# Получение информации о записи по id
+def get_order_info_by_id(order_id):
+    with sync_engine.connect() as conn:
+        # Приведение order_id к целому числу
+        order_id = int(order_id)
+        
+        # Получение информации о записи
+        select_stmt = select(orders_table.c.client_name, orders_table.c.client_time).where(orders_table.c.id == order_id)
+        result = conn.execute(select_stmt).fetchone()
+        
+        return result
+    
