@@ -8,7 +8,7 @@
 
   # Установка
     1) Клонируйте репозиторий
-      ```
+      ```sh
       git clone https://github.com/yourusername/yourproject.git
       ```
 
