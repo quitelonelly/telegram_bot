@@ -21,3 +21,9 @@
       pip install -r requirements.txt
 
   # Использование
+    1) Запустите файл bot.py, чтобы запустить Telegram-бота
+      python bot.py
+
+  # Описание структуры
+    # Таблицы базы данных 
+    # таблица users
