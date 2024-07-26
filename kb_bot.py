@@ -26,9 +26,10 @@ kb_delete_profile = InlineKeyboardMarkup(
 # Админ клавиатура
 kb_admin = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text='Клиенты'),
-         KeyboardButton(text='Записать')],
-        [KeyboardButton(text="Просмотреть записи")]
+        [KeyboardButton(text='Просмотреть клиентов'),
+         KeyboardButton(text='Записать клиента')],
+        [KeyboardButton(text="Просмотреть записи"),
+         KeyboardButton(text="Отправить сообщение")]
     ],
     resize_keyboard=True
 )

@@ -264,3 +264,18 @@ def get_order_info_by_id(order_id):
         
         return result
     
+# Получение tgid каждого клиента
+def get_all_users():
+    try:
+        with sync_engine.connect() as conn:
+            stmt = select(users_table.c.usertgid)  # Получаем только tgid
+            results = conn.execute(stmt).fetchall()
+            
+            # Возвращаем список tgid
+            tgid_list = [row[0] for row in results]
+            
+            return tgid_list
+    except Exception as e:
+        print(f"Ошибка: {e}")
+        return []
+    

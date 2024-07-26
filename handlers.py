@@ -21,13 +21,15 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 # Импорт состояния
 from state.register import RegisterState
 from state.order import OrderState
+from state.admin import AdminStates
 
 # Импорт функций для работы с БД
 from database.core import (
     insert_user, select_user_profile, delete_user, select_users, 
     create_kb, select_users_order, get_username_by_tgid, 
     get_userphone_by_tgid, insert_order, fetch_all_orders,
-    delete_order_by_time, delete_order_by_id, get_order_info_by_id
+    delete_order_by_time, delete_order_by_id, get_order_info_by_id,
+    get_all_users
     )
 
 # Обработчик команды /start
@@ -233,13 +235,31 @@ async def cmd_delete(message: types.Message, command: CommandObject):
     else:
         await message.answer("❌У вас нет прав для выполнения этой команды.")
         
-# Обработка подтверждения напоминания
 async def handle_confirm_reminder(callback: types.CallbackQuery):
-    print(f"Confirm callback data: {callback.data}")  # Отладочное сообщение
-    await callback.message.answer("✅Запись подтверждена!")
-    await callback.answer()
+    try:
+        data = callback.data.split('_')
+        
+        if len(data) == 3 and data[0] == "confirm" and data[1] == "reminder":
+            order_id = data[2]
+            
+            order_info = get_order_info_by_id(order_id)
+            if order_info:
+                client_name, order_time = order_info
+                await callback.message.answer("✅ Запись подтверждена!")
+                
+                # Уведомление администраторов
+                await notify_admins_about_confirmation(client_name, order_time)
+            else:
+                await callback.message.answer("❌ Запись не найдена!")
+        else:
+            await callback.message.answer("❌ Некорректные данные для подтверждения записи.")
+    except Exception as e:
+        await callback.message.answer("❌ Произошла ошибка при обработке запроса.")
+    finally:
+        # Удаление сообщения с кнопками
+        await callback.message.delete()
+        await callback.answer()
 
-# Обработка отмены напоминания
 async def handle_cancel_reminder(callback: types.CallbackQuery):
     try:
         data = callback.data.split('_')
@@ -251,25 +271,59 @@ async def handle_cancel_reminder(callback: types.CallbackQuery):
             if order_info:
                 client_name, order_time = order_info
                 if delete_order_by_id(order_id):
-                    await callback.message.answer("❌Запись отменена!")
+                    await callback.message.answer("❌ Запись отменена!")
                     await notify_admins_about_cancellation(client_name, order_time)
                 else:
-                    await callback.message.answer("❌Запись не найдена!")
+                    await callback.message.answer("❌ Запись не найдена!")
             else:
-                await callback.message.answer("❌Запись не найдена!")
+                await callback.message.answer("❌ Запись не найдена!")
         else:
-            await callback.message.answer("❌Некорректные данные для отмены записи.")
+            await callback.message.answer("❌ Некорректные данные для отмены записи.")
     except Exception as e:
-        await callback.message.answer("❌Произошла ошибка при обработке запроса.")
+        await callback.message.answer("❌ Произошла ошибка при обработке запроса.")
     finally:
+        # Удаление сообщения с кнопками
+        await callback.message.delete()
         await callback.answer()
         
-# Отправка уведомления администраторам
+# Отправка уведомления администраторам об отмене записи
 async def notify_admins_about_cancellation(client_name, order_time):
     admin_ids = settings.admin_ids
-    message = f"👤Клиент <b>{client_name}</b> отменил запись на {order_time}"
+    message = f"👤Клиент <b>{client_name}</b>\nотменил запись на <b>{order_time}</b>"
     for admin_id in admin_ids:
         await bot.send_message(admin_id, message, parse_mode="HTML")
+        
+# Отправка уведомления администраторам о подтверждении записи   
+async def notify_admins_about_confirmation(client_name, order_time):
+    admin_ids = settings.admin_ids
+    message = f"👤Клиент <b>{client_name}</b>\nподтвердил запись на <b>{order_time}</b>"
+    for admin_id in admin_ids:
+        await bot.send_message(admin_id, message, parse_mode="HTML")
+        
+# Отправка сообщения всем клиентам
+async def send_message_prompt(message: types.Message, state: FSMContext):
+    await state.set_state(AdminStates.waiting_for_message)
+    await message.answer("✉️ Для отправки напишите сообщение\nОно отправится всем пользователям✅")
+
+async def process_admin_message(message: types.Message, state: FSMContext):
+    admin_message = message.text
+    
+    # Получите список всех пользователей из вашей базы данных
+    users = get_all_users()
+    
+    # Рассылка сообщения всем пользователям
+    for user_id in users:
+        try:
+            await bot.send_message(user_id, f"👁Сообщение от администратора\n\n{admin_message}")
+        except Exception as e:
+            await message.answer(f"Не удалось отправить сообщение пользователю {user_id}")
+    
+    # Подтверждение администратору
+    await message.answer("✅Сообщение успешно отправлено всем пользователям.")
+    
+    # Завершите состояние
+    await state.finish()
+        
 
 # Функция для регистрации хэндлеров
 def reg_handlers(dp: Dispatcher):
@@ -288,9 +342,11 @@ def reg_handlers(dp: Dispatcher):
     dp.callback_query.register(exit_profile, F.data == 'exit')
 
     # Кнопки админ панели
-    dp.message.register(get_clients, F.text == "Клиенты")
-    dp.message.register(set_order, F.text == "Записать")
+    dp.message.register(get_clients, F.text == "Просмотреть клиентов")
+    dp.message.register(set_order, F.text == "Записать клиента")
     dp.message.register(get_orders, F.text == "Просмотреть записи")
+    dp.message.register(send_message_prompt, F.text == "Отправить сообщение")
+    dp.message.register(process_admin_message, AdminStates.waiting_for_message)
     
     # Запись клиентов(подтверждение выбора)
     dp.callback_query.register(handle_client_selection, lambda c: c.data.isdigit())
