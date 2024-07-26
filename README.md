@@ -8,31 +8,21 @@
 
   # Установка
     1) Клонируйте репозиторий
-      ```sh
       git clone https://github.com/yourusername/yourproject.git
-      ```
 
     2) Перейдите в директорию проекта
-      ```
       cd yourproject
-      ```
 
     3) Создайте и активируйте виртуальное окружение (опционально)
-      ```
       python3 -m venv venv
       source venv/bin/activate
-      ```
 
     4) Установите зависимости
-      ```
       pip install -r requirements.txt
-      ```
 
   # Использование
     1) Запустите файл bot.py, чтобы запустить Telegram-бота
-      ```
       python bot.py
-      ```
 
   # Описание структуры
     Таблицы базы данных 
@@ -54,7 +44,6 @@
     Основная логика бота (main.py)
     Файл main.py содержит основную логику и настройки для запуска бота.
     Пример настройки и запуска бота:
-    ```
     API_TOKEN = 'YOUR_API_TOKEN_HERE'
 
     # Инициализация бота и диспетчера
@@ -70,12 +59,10 @@
     
     if __name__ == "__main__":
         asyncio.run(main())
-    ```
     
     Логика обработки (handlers.py)
     Файл handlers.py содержит функции для обработки различных команд и сообщений от пользователей.
     Пример функции обработки команды старт:
-      ```
       from aiogram import types
       from aiogram.dispatcher import Dispatcher
       
@@ -84,4 +71,3 @@
       
       def register_handlers(dp: Dispatcher):
           dp.register_message_handler(start_command, commands=["start"])
-      ```
