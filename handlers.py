@@ -133,7 +133,7 @@ async def exit_profile(call: types.CallbackQuery):
     await call.message.delete()
 
     # Отправляем новое сообщение
-    await call.message.answer("Профиль удален", reply_markup=None)
+    await call.message.answer("Профиль удален", reply_markup=kb_reg)
     await call.answer(result, show_alert=True)
     
 # Админ панель
