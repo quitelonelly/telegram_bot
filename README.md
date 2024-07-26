@@ -25,5 +25,49 @@
       python bot.py
 
   # Описание структуры
-    # Таблицы базы данных 
-    # таблица users
+    Таблицы базы данных 
+    Таблица users
+    Таблица содержит информацию о пользователях:
+      id (Integer): первичный ключ.
+      username (String): имя пользователя.
+      userphone (String): номер телефона пользователя.
+      usertgid (Integer): идентификатор пользователя в Telegram.
+      
+    Таблица orders
+    Таблица содержит информацию о записях:
+      id (Integer): первичный ключ.
+      client_name (String): имя клиента.
+      client_phone (String): номер телефона клиента.
+      client_tgid (String): идентификатор клиента в Telegram.
+      client_time (String): время записи клиента.
+
+    Основная логика бота (main.py)
+    Файл main.py содержит основную логику и настройки для запуска бота.
+    Пример настройки и запуска бота:
+    API_TOKEN = 'YOUR_API_TOKEN_HERE'
+
+    # Инициализация бота и диспетчера
+    bot = Bot(token=API_TOKEN)
+    dp = Dispatcher(bot)
+    
+    # Регистрация обработчиков
+    register_handlers(dp)
+    
+    # Запуск процесса поллинга новых апдейтов
+    async def main():
+        await dp.start_polling(bot)
+    
+    if __name__ == "__main__":
+        asyncio.run(main())
+    
+    Логика обработки (handlers.py)
+    Файл handlers.py содержит функции для обработки различных команд и сообщений от пользователей.
+    Пример функции обработки команды старт:
+      from aiogram import types
+      from aiogram.dispatcher import Dispatcher
+      
+      async def start_command(message: types.Message):
+          await message.answer("Добро пожаловать! Пожалуйста, зарегистрируйтесь.", reply_markup=kb_reg)
+      
+      def register_handlers(dp: Dispatcher):
+          dp.register_message_handler(start_command, commands=["start"])
