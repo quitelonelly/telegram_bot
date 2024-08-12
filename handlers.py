@@ -118,8 +118,11 @@ async def get_profile(message: types.Message):
 
     # Получаем данные пользователя из бд
     result = select_user_profile(tgid)
-    await message.answer(result, reply_markup=kb_delete_profile)
-    await message.answer("✅Отлично!\n\nВам осталось лишь ожидать сообщения от меня!")
+    if result == "Вы еще не зарегистрировались!":
+        await message.answer(result)
+    else:
+        await message.answer(result, reply_markup=kb_delete_profile)
+        await message.answer("✅Отлично!\n\nВам осталось лишь ожидать сообщения от меня!")
     
 # Функция удаляет профиль пользователя
 async def exit_profile(call: types.CallbackQuery):

@@ -15,7 +15,6 @@ bot = Bot(token=os.getenv('BOT_TOKEN'))
 
 # Функция создания таблиц
 def create_tables():
-    metadata_obj.drop_all(sync_engine)
     metadata_obj.create_all(sync_engine)
     
 # Добавление пользователя в бд
@@ -83,7 +82,7 @@ def delete_user(tgid):
             
             return f"Ваш профиль был успешно удален:\n\n👤Логин: {result[1]}\n📞Телефон: {result[2]}"
         else: 
-            return f"Вашего профиля не существует."
+            return f"Вашего профиля не существует"
 
 # Функция возвращает список клиентов для админ панели
 def select_users():
@@ -152,10 +151,11 @@ async def get_userphone_by_tgid(tgid: int) -> str:
         else:
             return "Неизвестный пользователь"  
         
-# Московская временная зона
-moscow_tz = pytz.timezone('Europe/Moscow')
 # Планирование напоминания
 async def schedule_reminder(tgid, name, time, order_id):
+    
+    # Московская временная зона
+    moscow_tz = pytz.timezone('Europe/Moscow')
     try:
         client_time_msk = moscow_tz.localize(datetime.strptime(time, '%d.%m.%Y %H:%M'))
         reminder_time_msk = client_time_msk - timedelta(days=1)
